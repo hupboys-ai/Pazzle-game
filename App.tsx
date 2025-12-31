@@ -3,11 +3,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   RotateCcw, Trophy, ArrowRight, Lightbulb, 
   Star, Loader2, Home, Volume2, VolumeX, 
-  Play, FastForward, Settings, Share2, Award, Zap,
+  Play, FastForward, Settings, Share2, Award,
   ShieldCheck, Smartphone
 } from 'lucide-react';
-import { generateDrawingLevel, generateProceduralFallback } from './services/geminiService';
-import { DrawingLevel, GameState } from './types';
+import { generateDrawingLevel, generateProceduralFallback } from './services/geminiService.ts';
+import { DrawingLevel, GameState } from './types.ts';
 
 const createAudioSystem = () => {
   let ctx: AudioContext | null = null;
@@ -44,32 +44,31 @@ const createAudioSystem = () => {
 const BannerAd: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoaded(true), 600);
+    const timer = setTimeout(() => setIsLoaded(true), 1200);
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <div className="w-full h-[60px] bg-zinc-950/90 border border-white/5 flex items-center justify-between px-6 rounded-2xl overflow-hidden backdrop-blur-2xl mb-2 relative">
+    <div className="w-full h-[60px] bg-zinc-950/80 border border-white/5 flex items-center justify-between px-6 rounded-2xl overflow-hidden backdrop-blur-2xl mb-2 relative">
       {!isLoaded ? (
         <div className="absolute inset-0 ad-shimmer flex items-center justify-center">
-          <span className="text-[9px] font-black text-white/5 uppercase tracking-[0.4em]">Optimizing Ads...</span>
+          <span className="text-[8px] font-black text-white/5 uppercase tracking-[0.4em]">Requesting Ad...</span>
         </div>
       ) : (
         <>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.3)]">
+            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
               <Smartphone size={16} className="text-white" />
             </div>
             <div className="flex flex-col">
               <span className="text-[10px] font-black uppercase text-white tracking-widest leading-none flex items-center gap-1">
-                AdMob <ShieldCheck size={8} className="text-indigo-400" />
+                AdMob Live <ShieldCheck size={8} className="text-indigo-400" />
               </span>
-              <span className="text-[7px] text-zinc-600 font-bold tracking-tight uppercase">8223244910</span>
+              <span className="text-[7px] text-zinc-600 font-bold uppercase">ca-app-pub-8223244910</span>
             </div>
           </div>
           <div className="flex flex-col items-end">
-            <div className="text-[7px] bg-white text-black px-1.5 py-0.5 rounded-sm font-black uppercase mb-0.5">SPONSORED</div>
-            <span className="text-[6px] text-zinc-800 font-black uppercase">Click for Hint</span>
+            <div className="text-[7px] bg-white text-black px-1.5 py-0.5 rounded-sm font-black uppercase">AD</div>
           </div>
         </>
       )}
@@ -97,13 +96,12 @@ const App: React.FC = () => {
   const colors = ['#00F2FF', '#FF00FF', '#39FF14', '#FFD700', '#FF3131', '#7DF9FF', '#AAFF00'];
   const themeColor = colors[(levelNumber - 1) % colors.length];
 
-  // Pre-fetch first few levels on load
   useEffect(() => { 
     audio.current = createAudioSystem(); 
     const firstLvl = generateProceduralFallback(1);
     levelQueue.current.set(1, firstLvl);
-    setLevel(firstLvl); // Set initial level immediately to avoid black screen
-    for(let i = 2; i <= 6; i++) prefetch(i);
+    setLevel(firstLvl);
+    for(let i = 2; i <= 8; i++) prefetch(i);
   }, []);
 
   const prefetch = useCallback(async (n: number) => {
@@ -128,13 +126,11 @@ const App: React.FC = () => {
       setCurrentNodeId(null);
       setGameState('PLAYING');
       prefetch(n + 1);
-      prefetch(n + 2);
     } else {
       setGameState('LOADING');
       generateDrawingLevel(n).then(lvl => {
         setLevel(lvl);
         setGameState('PLAYING');
-        prefetch(n + 1);
       });
     }
   };
@@ -156,7 +152,7 @@ const App: React.FC = () => {
         callback();
         playSfx('reward');
       }, 2100);
-    }, 400);
+    }, 500);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -177,7 +173,7 @@ const App: React.FC = () => {
           setCurrentNodeId(node.id);
           playSfx('connect');
           if (usedEdges.size + 1 === level.edges.length) {
-            setTimeout(() => { setGameState('WIN'); playSfx('win'); }, 40);
+            setTimeout(() => { setGameState('WIN'); playSfx('win'); }, 50);
           }
           break;
         }
@@ -197,22 +193,22 @@ const App: React.FC = () => {
     return (
       <div className="flex-1 bg-black flex flex-col items-center justify-between p-10 safe-area-inset">
         <div className="pt-20 text-center">
-          <h1 className="text-[110px] font-black italic tracking-tighter leading-[0.55] text-white">
+          <h1 className="text-[100px] font-black italic tracking-tighter leading-[0.6] text-white">
             NEON<br/><span className="text-zinc-800">ONE</span>
           </h1>
-          <p className="mt-8 text-zinc-700 font-black uppercase tracking-[0.5em] text-[9px] opacity-60">HYPER LOGIC ENGINE 2025</p>
+          <p className="mt-8 text-zinc-800 font-black uppercase tracking-[0.4em] text-[8px]">PRO PUZZLE ENGINE v2.5</p>
         </div>
-        <div className="flex flex-col items-center gap-6 w-full max-w-[340px]">
+        <div className="flex flex-col items-center gap-6 w-full max-w-[320px]">
           <button onClick={() => { playSfx('click'); startLevel(levelNumber); }} 
-                  className="w-full bg-white text-black py-9 rounded-[3.5rem] font-black text-6xl shadow-[0_0_80px_rgba(255,255,255,0.1)] active:scale-95 transition-all flex items-center justify-center gap-6">
-            PLAY <Play fill="black" size={48}/>
+                  className="w-full bg-white text-black py-8 rounded-[3rem] font-black text-5xl active:scale-95 transition-all flex items-center justify-center gap-6">
+            PLAY <Play fill="black" size={40}/>
           </button>
           <div className="flex gap-4 w-full">
-            <button onClick={() => { setMuted(!muted); playSfx('click'); }} className="flex-1 bg-zinc-900/50 border border-white/5 p-6 rounded-3xl flex justify-center text-white active:scale-90">
-              {muted ? <VolumeX size={34} /> : <Volume2 size={34} />}
+            <button onClick={() => { setMuted(!muted); playSfx('click'); }} className="flex-1 bg-zinc-900 border border-white/5 p-5 rounded-2xl flex justify-center text-white active:scale-90">
+              {muted ? <VolumeX size={28} /> : <Volume2 size={28} />}
             </button>
-            <button className="flex-1 bg-zinc-900/50 border border-white/5 p-6 rounded-3xl flex justify-center text-white active:scale-90">
-              <Settings size={34} />
+            <button className="flex-1 bg-zinc-900 border border-white/5 p-5 rounded-2xl flex justify-center text-white active:scale-90">
+              <Settings size={28} />
             </button>
           </div>
         </div>
@@ -224,98 +220,95 @@ const App: React.FC = () => {
   if (gameState === 'LOADING') {
     return (
       <div className="flex-1 bg-black flex flex-col items-center justify-center">
-        <Loader2 className="w-12 h-12 text-white animate-spin opacity-20 mb-4" strokeWidth={5} />
-        <p className="text-zinc-600 font-black tracking-[0.5em] text-[10px] uppercase">Synching Data...</p>
+        <Loader2 className="w-10 h-10 text-white animate-spin opacity-10 mb-4" />
+        <p className="text-zinc-800 font-black tracking-[0.4em] text-[9px] uppercase">Generating Intelligence...</p>
       </div>
     );
   }
 
   return (
-    <div className={`flex-1 bg-black flex flex-col items-center justify-between safe-area-inset pb-6 transition-all duration-300 ${shake ? 'bg-rose-950/20' : ''}`}>
+    <div className={`flex-1 bg-black flex flex-col items-center justify-between safe-area-inset pb-6 transition-all duration-300 ${shake ? 'bg-rose-950/10' : ''}`}>
       {adState !== 'IDLE' && (
-        <div className="fixed inset-0 z-[10000] bg-zinc-950 flex flex-col items-center justify-center p-12 text-center animate-in fade-in duration-200">
-           <div className="p-10 bg-zinc-900/40 rounded-[3rem] border border-white/5 flex flex-col items-center backdrop-blur-xl">
-             <Award className="text-yellow-400 mb-8 animate-bounce" size={70} />
-             <h2 className="text-3xl font-black italic uppercase text-white tracking-widest mb-2">REWARD VIDEO</h2>
-             <p className="text-zinc-600 text-[9px] font-black tracking-[0.4em] mb-12 uppercase">UNIT: 9049225512</p>
-             <div className="w-64 h-2 bg-zinc-800 rounded-full overflow-hidden mb-6">
+        <div className="fixed inset-0 z-[10000] bg-zinc-950 flex flex-col items-center justify-center p-12 text-center">
+           <div className="p-8 bg-zinc-900 rounded-[2.5rem] border border-white/5 flex flex-col items-center backdrop-blur-3xl">
+             <Award className="text-yellow-400 mb-6 animate-bounce" size={60} />
+             <h2 className="text-2xl font-black italic uppercase text-white tracking-widest mb-1">REWARD AD</h2>
+             <p className="text-zinc-700 text-[8px] font-black tracking-[0.3em] mb-10 uppercase">ca-app-pub-9049225512</p>
+             <div className="w-56 h-1.5 bg-zinc-800 rounded-full overflow-hidden mb-5">
                 <div className="h-full bg-blue-500 transition-all duration-1000 ease-linear" style={{ width: `${((2-adTimer)/2)*100}%` }}></div>
              </div>
-             <p className="text-white/40 text-[10px] font-black uppercase tracking-tighter">Reward Unlock: {adTimer}s</p>
+             <p className="text-white/30 text-[9px] font-black uppercase tracking-tighter">Wait: {adTimer}s</p>
            </div>
         </div>
       )}
 
-      <div className="w-full px-8 pt-8 flex justify-between items-center z-50">
-        <button onClick={() => { playSfx('click'); setGameState('MENU'); }} className="p-4 bg-zinc-900/80 rounded-2xl border border-white/5 text-white active:scale-90 shadow-xl"><Home size={24}/></button>
-        <div className="bg-zinc-900/90 px-8 py-3 rounded-full border border-white/5 flex items-center gap-3 backdrop-blur-md">
-          <Star className="text-yellow-400 fill-yellow-400" size={16}/>
-          <span className="text-white font-black text-2xl italic tracking-tighter uppercase">LVL {levelNumber}</span>
+      <div className="w-full px-8 pt-8 flex justify-between items-center">
+        <button onClick={() => { playSfx('click'); setGameState('MENU'); }} className="p-3 bg-zinc-900 rounded-xl border border-white/5 text-white active:scale-90"><Home size={22}/></button>
+        <div className="bg-zinc-900/80 px-6 py-2 rounded-full border border-white/5 flex items-center gap-2">
+          <Star className="text-yellow-400 fill-yellow-400" size={14}/>
+          <span className="text-white font-black text-xl italic tracking-tighter">LVL {levelNumber}</span>
         </div>
-        <button onClick={() => { setUsedEdges(new Set()); setCurrentNodeId(null); playSfx('click'); }} className="p-4 bg-zinc-900/80 rounded-2xl border border-white/5 text-white active:rotate-180 transition-all duration-300 shadow-xl">
-          <RotateCcw size={24}/>
-        </button>
+        <button onClick={() => { setUsedEdges(new Set()); setCurrentNodeId(null); playSfx('click'); }} className="p-3 bg-zinc-900 rounded-xl border border-white/5 text-white active:rotate-180 transition-transform duration-300">
+          <RotateCcw size={22}/></button>
       </div>
 
-      <div className="flex flex-col items-center w-full px-6">
-        <div ref={container} className={`relative bg-[#060606] rounded-[5rem] border-2 border-white/5 transition-all duration-200 ${gameState === 'WIN' ? 'win-pulse' : ''}`}
-             style={{ width: 'min(92vw, 380px)', height: 'min(92vw, 380px)', boxShadow: isDrawing ? `0 0 100px ${themeColor}15` : 'none' }}
-             onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
-          <svg width="100%" height="100%" viewBox="0 0 400 400" className="overflow-visible relative z-20 pointer-events-none">
-            {level?.edges.map((e, i) => {
-              const n1 = level.nodes.find(n => n.id === e.from)!; const n2 = level.nodes.find(n => n.id === e.to)!;
-              return <line key={`bg-${i}`} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke="#121214" strokeWidth="26" strokeLinecap="round" />;
-            })}
-            {level?.edges.map((e, i) => {
-              const n1 = level.nodes.find(n => n.id === e.from)!; const n2 = level.nodes.find(n => n.id === e.to)!;
-              const isUsed = usedEdges.has([e.from, e.to].sort().join('-'));
-              return isUsed && (
-                <line key={`fg-${i}`} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke={themeColor} strokeWidth="26" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 10px ${themeColor})` }} />
-              );
-            })}
-            {isDrawing && currentNodeId !== null && (
-              <line x1={level?.nodes.find(n => n.id === currentNodeId)?.x} y1={level?.nodes.find(n => n.id === currentNodeId)?.y} x2={touchPos.x} y2={touchPos.y} stroke={`${themeColor}33`} strokeWidth="16" strokeDasharray="16,14" strokeLinecap="round" />
-            )}
-            {level?.nodes.map(n => {
-              const isActive = currentNodeId === n.id;
-              return <circle key={n.id} cx={n.x} cy={n.y} r="20" fill={isActive ? "white" : "#0a0a0a"} stroke={isActive ? themeColor : "#1a1a1e"} strokeWidth="6" className="transition-all duration-200" />;
-            })}
-          </svg>
-          <div className="absolute inset-0 z-30 pointer-events-none">
-            {level?.nodes.map(n => (
-              <div key={n.id} className="absolute w-44 h-44 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer touch-none" 
-                   style={{ left: `${(n.x/400)*100}%`, top: `${(n.y/400)*100}%` }} 
-                   onPointerDown={(e) => { e.stopPropagation(); setIsDrawing(true); setCurrentNodeId(n.id); playSfx('click'); }} />
-            ))}
-          </div>
+      <div ref={container} className="relative bg-[#040404] rounded-[4rem] border border-white/5"
+           style={{ width: 'min(90vw, 360px)', height: 'min(90vw, 360px)' }}
+           onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
+        <svg width="100%" height="100%" viewBox="0 0 400 400" className="overflow-visible z-20 pointer-events-none">
+          {level?.edges.map((e, i) => {
+            const n1 = level.nodes.find(n => n.id === e.from)!; const n2 = level.nodes.find(n => n.id === e.to)!;
+            return <line key={`bg-${i}`} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke="#0f0f11" strokeWidth="24" strokeLinecap="round" />;
+          })}
+          {level?.edges.map((e, i) => {
+            const n1 = level.nodes.find(n => n.id === e.from)!; const n2 = level.nodes.find(n => n.id === e.to)!;
+            const isUsed = usedEdges.has([e.from, e.to].sort().join('-'));
+            return isUsed && (
+              <line key={`fg-${i}`} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke={themeColor} strokeWidth="24" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 8px ${themeColor})` }} />
+            );
+          })}
+          {isDrawing && currentNodeId !== null && (
+            <line x1={level?.nodes.find(n => n.id === currentNodeId)?.x} y1={level?.nodes.find(n => n.id === currentNodeId)?.y} x2={touchPos.x} y2={touchPos.y} stroke={`${themeColor}22`} strokeWidth="14" strokeDasharray="12,12" strokeLinecap="round" />
+          )}
+          {level?.nodes.map(n => {
+            const isActive = currentNodeId === n.id;
+            return <circle key={n.id} cx={n.x} cy={n.y} r="18" fill={isActive ? "white" : "#050505"} stroke={isActive ? themeColor : "#151518"} strokeWidth="5" className="transition-all duration-200" />;
+          })}
+        </svg>
+        <div className="absolute inset-0 z-30 pointer-events-none">
+          {level?.nodes.map(n => (
+            <div key={n.id} className="absolute w-40 h-40 -translate-x-1/2 -translate-y-1/2 pointer-events-auto" 
+                 style={{ left: `${(n.x/400)*100}%`, top: `${(n.y/400)*100}%` }} 
+                 onPointerDown={(e) => { e.stopPropagation(); setIsDrawing(true); setCurrentNodeId(n.id); playSfx('click'); }} />
+          ))}
         </div>
       </div>
 
-      <div className="w-full px-8 flex flex-col gap-4 max-w-[440px] z-50">
-        <div className="flex gap-4">
-          <button onClick={() => triggerRewardedAd(() => {})} className="flex-1 bg-zinc-900/60 py-6 rounded-[2rem] flex items-center justify-center gap-3 text-white font-black text-[11px] tracking-widest border border-white/5 active:scale-95 shadow-2xl backdrop-blur-lg">
-            <Lightbulb size={22} className="text-yellow-400" /> HINT
+      <div className="w-full px-8 flex flex-col gap-3 max-w-[400px]">
+        <div className="flex gap-3">
+          <button onClick={() => triggerRewardedAd(() => {})} className="flex-1 bg-zinc-900/50 py-5 rounded-2xl flex items-center justify-center gap-2 text-white font-black text-[10px] tracking-widest border border-white/5 active:scale-95">
+            <Lightbulb size={20} className="text-yellow-400" /> HINT
           </button>
-          <button onClick={() => triggerRewardedAd(() => setGameState('WIN'))} className="flex-1 bg-zinc-900/60 py-6 rounded-[2rem] flex items-center justify-center gap-3 text-white font-black text-[11px] tracking-widest border border-white/5 active:scale-95 shadow-2xl backdrop-blur-lg">
-            <FastForward size={22} className="text-rose-500" /> SKIP
+          <button onClick={() => triggerRewardedAd(() => setGameState('WIN'))} className="flex-1 bg-zinc-900/50 py-5 rounded-2xl flex items-center justify-center gap-2 text-white font-black text-[10px] tracking-widest border border-white/5 active:scale-95">
+            <FastForward size={20} className="text-rose-500" /> SKIP
           </button>
         </div>
         <BannerAd />
       </div>
 
       {gameState === 'WIN' && (
-        <div className="fixed inset-0 z-[11000] bg-black/98 flex items-center justify-center p-10 animate-in zoom-in duration-300 backdrop-blur-3xl">
+        <div className="fixed inset-0 z-[11000] bg-black/98 flex items-center justify-center p-10 backdrop-blur-3xl animate-in zoom-in duration-300">
           <div className="text-center w-full max-w-sm">
-            <Trophy size={140} className="mx-auto text-yellow-400 animate-bounce mb-8 drop-shadow-[0_0_50px_rgba(250,204,21,0.2)]" />
-            <h2 className="text-[100px] font-black italic text-white tracking-tighter mb-4 uppercase leading-[0.6]">IQ<br/><span className="text-yellow-400">UP!</span></h2>
-            <div className="flex flex-col gap-5 mt-12">
+            <Trophy size={120} className="mx-auto text-yellow-400 animate-bounce mb-6" />
+            <h2 className="text-[90px] font-black italic text-white tracking-tighter mb-4 leading-[0.6] uppercase">IQ<br/><span className="text-yellow-400">BOOST</span></h2>
+            <div className="flex flex-col gap-4 mt-10">
               <button onClick={() => { setLevelNumber(n => n + 1); startLevel(levelNumber + 1); playSfx('click'); }} 
-                      className="w-full bg-white text-black py-9 rounded-[4.5rem] text-4xl font-black flex items-center justify-center gap-6 active:scale-90 shadow-2xl transition-all">
-                NEXT <ArrowRight size={44} strokeWidth={5} />
+                      className="w-full bg-white text-black py-7 rounded-[3rem] text-3xl font-black flex items-center justify-center gap-5 active:scale-90 transition-all">
+                NEXT <ArrowRight size={38} strokeWidth={5} />
               </button>
-              <button onClick={() => { if(navigator.share) navigator.share({ title: 'Neon One', text: `I'm at level ${levelNumber}! Can you beat me?`, url: window.location.href }); }} 
-                      className="w-full bg-zinc-900/30 text-white py-6 rounded-3xl font-black uppercase text-[10px] tracking-widest border border-white/5 flex items-center justify-center gap-3 active:scale-95">
-                <Share2 size={24} /> BRAG TO FRIENDS
+              <button onClick={() => { if(navigator.share) navigator.share({ title: 'Neon One', text: `Level ${levelNumber} is easy! Can you win?`, url: window.location.href }); }} 
+                      className="w-full bg-zinc-900/20 text-white py-5 rounded-2xl font-black uppercase text-[9px] tracking-widest border border-white/5 flex items-center justify-center gap-2 active:scale-95">
+                <Share2 size={20} /> SHARE CHALLENGE
               </button>
             </div>
           </div>
