@@ -1,8 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { DrawingLevel } from "../types";
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import { DrawingLevel, Difficulty } from "../types";
 
 const LEVEL_SCHEMA = {
   type: Type.OBJECT,
@@ -35,17 +33,50 @@ const LEVEL_SCHEMA = {
   required: ["title", "nodes", "edges"]
 };
 
+export const getDifficultyConfig = (levelNum: number): { difficulty: Difficulty; nodeCount: number } => {
+  if (levelNum <= 5) return { difficulty: 'EASY', nodeCount: 5 };
+  if (levelNum <= 15) return { difficulty: 'MEDIUM', nodeCount: 7 };
+  if (levelNum <= 30) return { difficulty: 'HARD', nodeCount: 10 };
+  if (levelNum <= 60) return { difficulty: 'ULTRA HARD', nodeCount: 14 };
+  return { difficulty: 'ULTRA PRO HARD', nodeCount: 18 };
+};
+
+export const generateProceduralFallback = (levelNum: number): DrawingLevel => {
+  const { difficulty, nodeCount } = getDifficultyConfig(levelNum);
+  const nodes = [];
+  const center = 200;
+  const spread = 120;
+
+  // Create a symmetrical star/polygon pattern for instant loading
+  for(let i = 0; i < nodeCount - 1; i++) {
+    const angle = (i * 2 * Math.PI) / (nodeCount - 1);
+    nodes.push({ 
+      id: i, 
+      x: center + Math.cos(angle) * spread, 
+      y: center + Math.sin(angle) * spread 
+    });
+  }
+  nodes.push({ id: nodeCount - 1, x: center, y: center });
+
+  const edges = [];
+  for(let i = 0; i < nodeCount - 1; i++) {
+    edges.push({ from: i, to: (i + 1) % (nodeCount - 1), used: false });
+    edges.push({ from: i, to: nodeCount - 1, used: false });
+  }
+
+  return { id: levelNum, title: `Logic Pattern ${levelNum}`, difficulty, nodes, edges };
+};
+
 export const generateDrawingLevel = async (levelNum: number): Promise<DrawingLevel> => {
+  const { difficulty, nodeCount } = getDifficultyConfig(levelNum);
+  const apiKey = process?.env?.API_KEY;
+  
+  if (!apiKey) return generateProceduralFallback(levelNum);
+
   try {
-    const complexity = Math.min(4 + Math.floor(levelNum / 2), 12);
-    const prompt = `Generate a one-line drawing puzzle level for an IQ game.
-    Level Number: ${levelNum}
-    Number of Nodes: ${complexity}
-    Rules:
-    1. The graph MUST contain an Eulerian Path (connect all edges with one stroke).
-    2. Coordinates must be between 50 and 350 for a 400x400 area.
-    3. Ensure the shape looks aesthetically pleasing (star-like, geometric, or abstract).
-    4. Return valid JSON only.`;
+    const ai = new GoogleGenAI({ apiKey });
+    // Streamlined prompt to reduce token usage and speed up response
+    const prompt = `Eulerian path JSON puzzle. Level: ${levelNum}, Difficulty: ${difficulty}, Nodes: ${nodeCount}. Grid: 400x400. One continuous line possible.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -53,6 +84,7 @@ export const generateDrawingLevel = async (levelNum: number): Promise<DrawingLev
       config: {
         responseMimeType: "application/json",
         responseSchema: LEVEL_SCHEMA,
+        thinkingConfig: { thinkingBudget: 0 } // Fast mode
       }
     });
     
@@ -60,28 +92,11 @@ export const generateDrawingLevel = async (levelNum: number): Promise<DrawingLev
     return { 
       ...parsed, 
       id: levelNum, 
-      edges: (parsed.edges || []).map((e: any) => ({ ...e, used: false })) 
+      difficulty,
+      edges: parsed.edges.map((e: any) => ({ ...e, used: false })) 
     } as DrawingLevel;
   } catch (e) {
-    // Robust fallback shape
-    return {
-      id: levelNum,
-      title: "Crystal Core",
-      nodes: [
-        { id: 0, x: 200, y: 50 },
-        { id: 1, x: 50, y: 200 },
-        { id: 2, x: 200, y: 350 },
-        { id: 3, x: 350, y: 200 },
-        { id: 4, x: 200, y: 200 }
-      ],
-      edges: [
-        { from: 0, to: 1, used: false },
-        { from: 1, to: 2, used: false },
-        { from: 2, to: 3, used: false },
-        { from: 3, to: 0, used: false },
-        { from: 0, to: 4, used: false },
-        { from: 4, to: 2, used: false }
-      ]
-    };
+    console.warn("AI Generation slow or failed, using procedural logic.");
+    return generateProceduralFallback(levelNum);
   }
 };

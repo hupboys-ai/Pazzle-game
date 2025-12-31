@@ -3,44 +3,72 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   RotateCcw, Trophy, ArrowRight, Lightbulb, 
   Star, Loader2, Home, Volume2, VolumeX, 
-  Zap, Play, FastForward, Settings, Share2, Award
+  Play, FastForward, Settings, Share2, Award, Zap
 } from 'lucide-react';
-import { generateDrawingLevel } from './services/geminiService';
-import { DrawingLevel, GameState } from './types';
+import { generateDrawingLevel, generateProceduralFallback } from './services/geminiService';
+import { DrawingLevel, GameState, Difficulty } from './types';
 
-const AdBanner: React.FC = () => (
-  <div className="w-full h-[60px] bg-zinc-900/40 border-y border-zinc-800/30 flex items-center justify-center relative shrink-0 overflow-hidden rounded-xl">
-    <div className="absolute top-0 left-2 bg-zinc-800/80 px-2 py-0.5 rounded-b-md text-[7px] font-bold text-zinc-500 uppercase tracking-widest">Sponsored</div>
+const createAudioSystem = () => {
+  let ctx: AudioContext | null = null;
+  const init = () => { 
+    if (!ctx) {
+      try { ctx = new (window.AudioContext || (window as any).webkitAudioContext)(); } 
+      catch (e) { console.warn("Audio Context Disabled"); }
+    }
+  };
+  const playTone = (freq: number, type: OscillatorType, duration: number, volume: number) => {
+    try {
+      init();
+      if (!ctx || ctx.state === 'closed') return;
+      if (ctx.state === 'suspended') ctx.resume();
+      const osc = ctx.createOscillator(); 
+      const gain = ctx.createGain();
+      osc.type = type; 
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(volume, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + duration);
+    } catch (e) {}
+  };
+  return {
+    connect: () => playTone(1300, 'sine', 0.08, 0.04),
+    error: () => playTone(160, 'sawtooth', 0.2, 0.06),
+    win: () => { [523, 659, 783, 1046].forEach((f, i) => setTimeout(() => playTone(f, 'sine', 0.5, 0.04), i * 100)); },
+    click: () => playTone(950, 'sine', 0.05, 0.03),
+    reward: () => playTone(1400, 'triangle', 0.4, 0.05)
+  };
+};
+
+const AdMobBanner: React.FC = () => (
+  <div className="w-full h-[65px] bg-zinc-900/40 border border-white/5 flex items-center justify-between px-6 relative overflow-hidden rounded-[2rem] backdrop-blur-lg">
+    <div className="absolute top-0 left-4 bg-zinc-800 px-2 py-0.5 rounded-b text-[7px] font-black text-white/30 tracking-[0.2em]">AD</div>
     <div className="flex items-center gap-4">
-      <div className="w-8 h-8 bg-zinc-800 rounded animate-pulse"></div>
-      <div className="flex flex-col gap-1">
-        <div className="w-24 h-2 bg-zinc-800 rounded"></div>
-        <div className="w-16 h-1.5 bg-zinc-800/50 rounded"></div>
+      <div className="w-9 h-9 bg-gradient-to-tr from-purple-500 to-pink-600 rounded-xl flex items-center justify-center animate-pulse shadow-lg">
+        <Zap className="text-white" size={18} />
       </div>
-      <div className="ml-4 px-3 py-1 bg-cyan-500/20 text-cyan-400 text-[8px] font-bold rounded-full border border-cyan-500/30 uppercase tracking-tighter">Install</div>
+      <div className="flex flex-col">
+        <span className="text-white text-[11px] font-black uppercase">Viral Reward</span>
+        <span className="text-zinc-500 text-[9px] font-bold">Watch to unlock hints</span>
+      </div>
     </div>
+    <button className="px-5 py-2 bg-white text-black text-[10px] font-black rounded-full active:scale-95 transition-transform shadow-xl">CLAIM</button>
   </div>
 );
 
-const AudioSystem = () => {
-  const ctxRef = useRef<AudioContext | null>(null);
-  const init = () => { if (!ctxRef.current) ctxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)(); };
-  const playTone = (freq: number, type: OscillatorType, duration: number, volume: number) => {
-    init(); const ctx = ctxRef.current!; if (ctx.state === 'suspended') ctx.resume();
-    const osc = ctx.createOscillator(); const gain = ctx.createGain();
-    osc.type = type; osc.frequency.setValueAtTime(freq, ctx.currentTime);
-    gain.gain.setValueAtTime(volume, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(); osc.stop(ctx.currentTime + duration);
+const DifficultyTag: React.FC<{ difficulty: Difficulty }> = ({ difficulty }) => {
+  const styles: Record<Difficulty, string> = {
+    'EASY': 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5',
+    'MEDIUM': 'text-sky-400 border-sky-500/20 bg-sky-500/5',
+    'HARD': 'text-amber-400 border-amber-500/20 bg-amber-500/5',
+    'ULTRA HARD': 'text-rose-400 border-rose-500/20 bg-rose-500/5',
+    'ULTRA PRO HARD': 'text-purple-400 border-purple-500/40 bg-purple-500/10 animate-pulse'
   };
-  return {
-    connect: () => playTone(1200, 'sine', 0.08, 0.03),
-    error: () => playTone(140, 'sawtooth', 0.4, 0.04),
-    win: () => { [523, 659, 783, 1046].forEach((f, i) => setTimeout(() => playTone(f, 'sine', 0.7, 0.03), i * 150)); },
-    click: () => playTone(900, 'sine', 0.05, 0.02),
-    reward: () => playTone(1000, 'triangle', 0.5, 0.05)
-  };
+  return (
+    <div className={`px-5 py-1.5 rounded-full border text-[9px] font-black tracking-[0.2em] uppercase mb-6 ${styles[difficulty]}`}>
+      {difficulty}
+    </div>
+  );
 };
 
 const App: React.FC = () => {
@@ -53,226 +81,236 @@ const App: React.FC = () => {
   const [touchPos, setTouchPos] = useState({ x: 0, y: 0 });
   const [shake, setShake] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [isWatchingAd, setIsWatchingAd] = useState(false);
-  const [adTimer, setAdTimer] = useState(5);
+  const [isAdShowing, setIsAdShowing] = useState(false);
+  const [adTimer, setAdTimer] = useState(3);
   
-  const audio = useRef<ReturnType<typeof AudioSystem> | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Instant Level Queue
+  const levelQueue = useRef<Map<number, DrawingLevel>>(new Map());
+  const audio = useRef<ReturnType<typeof createAudioSystem> | null>(null);
+  const container = useRef<HTMLDivElement>(null);
 
-  const themeColors = ['#00f2ff', '#bc13fe', '#ff0055', '#39ff14', '#faff00'];
-  const theme = { color: themeColors[levelNumber % themeColors.length] };
+  const colors = ['#00F2FF', '#FF00FF', '#39FF14', '#FFD700', '#FF3131', '#7DF9FF', '#CCFF00'];
+  const themeColor = colors[(levelNumber - 1) % colors.length];
 
-  useEffect(() => { audio.current = AudioSystem(); }, []);
+  useEffect(() => { 
+    audio.current = createAudioSystem(); 
+    // Start Queue: Level 1 (Local), Level 2-5 (Background)
+    levelQueue.current.set(1, generateProceduralFallback(1));
+    for(let i = 2; i <= 5; i++) prefetch(i);
+  }, []);
 
-  const playSound = (type: keyof ReturnType<typeof AudioSystem>) => {
+  const prefetch = async (n: number) => {
+    if (levelQueue.current.has(n)) return;
+    try {
+      const lvl = await generateDrawingLevel(n);
+      levelQueue.current.set(n, lvl);
+    } catch (e) {
+      levelQueue.current.set(n, generateProceduralFallback(n));
+    }
+  };
+
+  const playSfx = (type: keyof ReturnType<typeof createAudioSystem>) => {
     if (!muted && audio.current) (audio.current as any)[type]();
   };
 
-  const startLevel = async (num: number) => {
-    setGameState('LOADING');
-    const lvl = await generateDrawingLevel(num);
-    setLevel(lvl);
-    setUsedEdges(new Set());
-    setCurrentNodeId(null);
-    setGameState('PLAYING');
+  const startLevel = (n: number) => {
+    const data = levelQueue.current.get(n);
+    if (data) {
+      setLevel(data);
+      setUsedEdges(new Set());
+      setCurrentNodeId(null);
+      setGameState('PLAYING');
+      // Prefetch the next 3 levels whenever a level starts
+      for(let i = 1; i <= 3; i++) prefetch(n + i);
+    } else {
+      setGameState('LOADING');
+      generateDrawingLevel(n).then(lvl => {
+        setLevel(lvl);
+        setGameState('PLAYING');
+        prefetch(n + 1);
+      });
+    }
   };
 
-  const handlePointerMove = (e: React.PointerEvent | React.TouchEvent) => {
-    if (!isDrawing || !level || currentNodeId === null || isWatchingAd) return;
-    const rect = containerRef.current?.getBoundingClientRect();
+  const handleMove = (e: React.PointerEvent | React.TouchEvent) => {
+    if (!isDrawing || !level || currentNodeId === null || isAdShowing) return;
+    const rect = container.current?.getBoundingClientRect();
     if (!rect) return;
-    
-    let clientX, clientY;
-    if ('touches' in e) {
-      clientX = (e as React.TouchEvent).touches[0].clientX;
-      clientY = (e as React.TouchEvent).touches[0].clientY;
-    } else {
-      clientX = (e as React.PointerEvent).clientX;
-      clientY = (e as React.PointerEvent).clientY;
-    }
-
-    const x = ((clientX - rect.left) / rect.width) * 400;
-    const y = ((clientY - rect.top) / rect.height) * 400;
+    const cx = 'touches' in e ? e.touches[0].clientX : (e as React.PointerEvent).clientX;
+    const cy = 'touches' in e ? e.touches[0].clientY : (e as React.PointerEvent).clientY;
+    const x = ((cx - rect.left) / rect.width) * 400;
+    const y = ((cy - rect.top) / rect.height) * 400;
     setTouchPos({ x, y });
 
-    level.nodes.forEach(node => {
-      const dist = Math.sqrt((node.x - x) ** 2 + (node.y - y) ** 2);
-      if (dist < 40 && node.id !== currentNodeId) {
-        const key = [currentNodeId, node.id].sort().join('-');
-        const validEdge = level.edges.find(edge => 
-          (edge.from === currentNodeId && edge.to === node.id) || (edge.from === node.id && edge.to === currentNodeId)
-        );
-        
-        if (validEdge && !usedEdges.has(key)) {
-          setUsedEdges(new Set(usedEdges).add(key));
+    const nodes = level.nodes;
+    for(let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      const d = Math.sqrt((node.x - x)**2 + (node.y - y)**2);
+      if (d < 45 && node.id !== currentNodeId) {
+        const k = [currentNodeId, node.id].sort().join('-');
+        const exists = level.edges.find(ed => (ed.from === currentNodeId && ed.to === node.id) || (ed.from === node.id && ed.to === currentNodeId));
+        if (exists && !usedEdges.has(k)) {
+          setUsedEdges(new Set(usedEdges).add(k));
           setCurrentNodeId(node.id);
-          playSound('connect');
+          playSfx('connect');
           if (usedEdges.size + 1 === level.edges.length) {
-            setTimeout(() => { setGameState('WIN'); playSound('win'); }, 400);
+            setTimeout(() => { setGameState('WIN'); playSfx('win'); }, 100);
           }
         }
       }
-    });
+    }
   };
 
-  const handlePointerUp = () => {
+  const handleUp = () => {
     if (isDrawing && level && usedEdges.size < level.edges.length) {
-      setShake(true); playSound('error'); setTimeout(() => setShake(false), 400);
+      setShake(true); playSfx('error'); setTimeout(() => setShake(false), 250);
       setUsedEdges(new Set()); setCurrentNodeId(null);
     }
     setIsDrawing(false);
   };
 
-  const watchAd = (onComplete: () => void) => {
-    setIsWatchingAd(true);
-    setAdTimer(5);
-    const interval = setInterval(() => {
-      setAdTimer(prev => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-    setTimeout(() => { setIsWatchingAd(false); playSound('reward'); onComplete(); }, 5500);
-  };
-
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: 'Neon One IQ',
-        text: `I just beat Level ${levelNumber} in Neon One! Think you have a higher IQ? Try it now:`,
-        url: window.location.href
-      }).catch(() => {});
-    }
+  const showAd = (callback: () => void) => {
+    setAdTimer(2);
+    setIsAdShowing(true);
+    const itv = setInterval(() => setAdTimer(t => t - 1), 1000);
+    setTimeout(() => {
+      clearInterval(itv);
+      setIsAdShowing(false);
+      callback();
+      playSfx('reward');
+    }, 2200);
   };
 
   if (gameState === 'MENU') {
     return (
-      <div className="h-screen bg-[#050505] flex flex-col items-center justify-between p-10 text-white overflow-hidden">
-        <div className="pt-32 text-center relative w-full">
-          <div className="absolute -inset-20 bg-cyan-500/5 blur-[120px] rounded-full"></div>
-          <h1 className="text-8xl font-black tracking-tighter italic leading-[0.75] relative z-10 select-none">
-            NEON<br/><span className="text-zinc-600">ONE</span>
+      <div className="flex-1 bg-black flex flex-col items-center justify-between p-10 safe-area-inset">
+        <div className="pt-24 text-center">
+          <h1 className="text-[110px] font-black italic tracking-tighter leading-[0.55] text-white">
+            NEON<br/><span className="text-zinc-800">ONE</span>
           </h1>
-          <div className="mt-10 flex items-center justify-center gap-4 text-zinc-600 font-bold uppercase tracking-[0.7em] text-[11px] relative z-10 opacity-70">
-            <div className="h-[1px] w-6 bg-zinc-800"></div>
-            IQ MASTER
-            <div className="h-[1px] w-6 bg-zinc-800"></div>
-          </div>
+          <p className="mt-10 text-zinc-600 font-black uppercase tracking-[0.9em] text-[11px]">IQ TRAINING 2025</p>
         </div>
-
-        <div className="flex flex-col items-center gap-8 w-full max-w-xs relative z-10">
-          <button onClick={() => startLevel(levelNumber)} 
-                  className="w-full bg-white text-black py-8 rounded-[3.5rem] font-black text-4xl shadow-[0_30px_90px_rgba(255,255,255,0.25)] active:scale-95 transition-all flex items-center justify-center gap-4 hover:bg-zinc-100">
-            START <Play className="fill-black" size={36}/>
+        <div className="flex flex-col items-center gap-6 w-full max-w-[340px]">
+          <button onClick={() => { playSfx('click'); startLevel(levelNumber); }} 
+                  className="w-full bg-white text-black py-10 rounded-[4rem] font-black text-6xl shadow-2xl active:scale-95 transition-transform flex items-center justify-center gap-6">
+            PLAY <Play fill="black" size={48}/>
           </button>
           <div className="flex gap-4 w-full">
-            <button onClick={() => setMuted(!muted)} className="flex-1 bg-zinc-900/60 border border-zinc-800 p-6 rounded-3xl flex justify-center text-zinc-500 active:bg-zinc-800 transition-colors backdrop-blur-md">
-              {muted ? <VolumeX size={26}/> : <Volume2 size={26}/>}
+            <button onClick={() => { setMuted(!muted); playSfx('click'); }} className="flex-1 bg-zinc-900 border border-zinc-800 p-7 rounded-[2.5rem] flex justify-center text-white active:scale-90">
+              {muted ? <VolumeX size={34} /> : <Volume2 size={34} />}
             </button>
-            <button className="flex-1 bg-zinc-900/60 border border-zinc-800 p-6 rounded-3xl flex justify-center text-zinc-500 active:bg-zinc-800 transition-colors backdrop-blur-md">
-              <Settings size={26}/>
+            <button className="flex-1 bg-zinc-900 border border-zinc-800 p-7 rounded-[2.5rem] flex justify-center text-white active:scale-90">
+              <Settings size={34} />
             </button>
           </div>
         </div>
-        <div className="w-full max-w-sm mb-6"><AdBanner /></div>
+        <AdMobBanner />
       </div>
     );
   }
 
   if (gameState === 'LOADING') {
     return (
-      <div className="h-screen bg-[#050505] flex flex-col items-center justify-center">
-        <div className="relative flex items-center justify-center">
-          <Loader2 className="w-24 h-24 text-white animate-spin opacity-20" strokeWidth={3} />
-          <div className="absolute inset-0 bg-white/5 blur-3xl animate-pulse rounded-full"></div>
-        </div>
-        <p className="mt-12 text-zinc-600 font-bold tracking-[0.6em] text-[12px] uppercase animate-pulse">Forging Level...</p>
+      <div className="flex-1 bg-black flex flex-col items-center justify-center">
+        <Loader2 className="w-12 h-12 text-white animate-spin opacity-25 mb-6" strokeWidth={5} />
+        <p className="text-zinc-600 font-black tracking-[0.8em] text-[9px] uppercase">READYING ENGINE</p>
       </div>
     );
   }
 
   return (
-    <div className={`h-screen bg-[#050505] flex flex-col items-center justify-between transition-colors duration-500 ${shake ? 'bg-red-900/10' : ''}`}>
-      {isWatchingAd && (
-        <div className="fixed inset-0 z-[200] bg-black/98 flex flex-col items-center justify-center p-12 text-center backdrop-blur-3xl animate-in fade-in duration-300">
-          <Award className="text-white mb-10 animate-bounce" size={80} />
-          <h2 className="text-3xl font-black italic tracking-widest uppercase mb-6">Unlocking Hint</h2>
-          <div className="w-full max-w-[240px] h-2 bg-zinc-900 rounded-full overflow-hidden border border-white/10 shadow-inner">
-             <div className="h-full bg-white transition-all duration-1000 ease-linear shadow-[0_0_20px_white]" style={{ width: `${(5-adTimer)/5*100}%` }}></div>
+    <div className={`flex-1 bg-black flex flex-col items-center justify-between safe-area-inset pb-6 transition-all duration-300 ${shake ? 'bg-red-950/20' : ''}`}>
+      {isAdShowing && (
+        <div className="fixed inset-0 z-[1000] bg-black/98 flex flex-col items-center justify-center p-12 text-center backdrop-blur-2xl animate-in fade-in duration-200">
+          <Award className="text-white mb-6 animate-bounce" size={80} />
+          <h2 className="text-2xl font-black italic uppercase mb-6 text-white tracking-widest leading-none">REWARDING</h2>
+          <div className="w-full max-w-xs h-1.5 bg-zinc-900 rounded-full overflow-hidden">
+             <div className="h-full bg-white transition-all duration-1000" style={{ width: `${(2-adTimer)/2*100}%` }}></div>
           </div>
-          <p className="mt-8 text-zinc-500 text-[11px] font-bold uppercase tracking-widest">Resuming in {adTimer}s</p>
         </div>
       )}
 
-      <div className="w-full px-8 pt-16 flex justify-between items-center z-10">
-        <button onClick={() => setGameState('MENU')} className="p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800 text-zinc-500 active:scale-90 transition-transform shadow-xl"><Home size={24}/></button>
-        <div className="bg-zinc-900/95 px-8 py-3 rounded-full border border-zinc-800 flex items-center gap-4 shadow-2xl backdrop-blur-xl">
-          <Star className="text-yellow-400 fill-yellow-400" size={18}/>
-          <span className="text-white font-black text-2xl italic tracking-tighter uppercase">LEVEL {levelNumber}</span>
+      <div className="w-full px-8 pt-8 flex justify-between items-center z-50">
+        <button onClick={() => { playSfx('click'); setGameState('MENU'); }} className="p-4 bg-zinc-900 rounded-[2rem] border border-zinc-800 text-white active:scale-90 shadow-lg"><Home size={26}/></button>
+        <div className="bg-zinc-900/95 px-8 py-3 rounded-full border border-zinc-800 flex items-center gap-3">
+          <Star className="text-yellow-400 fill-yellow-400" size={20}/>
+          <span className="text-white font-black text-2xl italic tracking-tighter">LVL {levelNumber}</span>
         </div>
-        <button onClick={() => { setUsedEdges(new Set()); setCurrentNodeId(null); playSound('click'); }} className="p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800 text-zinc-500 active:rotate-180 transition-all duration-700 shadow-xl">
-          <RotateCcw size={24}/>
+        <button onClick={() => { setUsedEdges(new Set()); setCurrentNodeId(null); playSfx('click'); }} className="p-4 bg-zinc-900 rounded-[2rem] border border-zinc-800 text-white active:rotate-180 transition-all duration-500 shadow-lg">
+          <RotateCcw size={26}/>
         </button>
       </div>
 
-      <div ref={containerRef} className="relative bg-black rounded-[5rem] border border-zinc-900/60 transition-all duration-700 overflow-visible"
-           style={{ width: 'min(92vw, 380px)', height: 'min(92vw, 380px)', boxShadow: isDrawing ? `0 0 100px ${theme.color}20` : `0 0 40px ${theme.color}05` }}
-           onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
-        <svg width="100%" height="100%" viewBox="0 0 400 400" className="overflow-visible relative z-20 pointer-events-none">
-          {level?.edges.map((e, i) => {
-            const n1 = level.nodes.find(n => n.id === e.from)!; const n2 = level.nodes.find(n => n.id === e.to)!;
-            return <line key={`bg-${i}`} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke="#1a1a1e" strokeWidth="18" strokeLinecap="round" />;
-          })}
-          {level?.edges.map((e, i) => {
-            const n1 = level.nodes.find(n => n.id === e.from)!; const n2 = level.nodes.find(n => n.id === e.to)!;
-            const isUsed = usedEdges.has([e.from, e.to].sort().join('-'));
-            return <line key={i} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke={isUsed ? theme.color : "transparent"} strokeWidth="20" strokeLinecap="round" className="transition-all duration-300" style={{ filter: isUsed ? `drop-shadow(0 0 15px ${theme.color})` : 'none' }} />;
-          })}
-          {isDrawing && currentNodeId !== null && (
-            <line x1={level?.nodes.find(n => n.id === currentNodeId)?.x} y1={level?.nodes.find(n => n.id === currentNodeId)?.y} x2={touchPos.x} y2={touchPos.y} stroke={`${theme.color}70`} strokeWidth="6" strokeDasharray="12,10" />
-          )}
-          {level?.nodes.map(n => {
-            const isActive = currentNodeId === n.id;
-            return (
-              <g key={n.id}>
-                <circle cx={n.x} cy={n.y} r="16" fill={isActive ? "white" : "#0e0e11"} stroke={isActive ? theme.color : "#2a2a2e"} strokeWidth="5" className="transition-all duration-300" />
-                {isActive && <circle cx={n.x} cy={n.y} r="35" fill={`${theme.color}15`} className="animate-ping" />}
-              </g>
-            );
-          })}
-        </svg>
-        <div className="absolute inset-0 z-30 pointer-events-none">
-          {level?.nodes.map(n => (
-            <div key={n.id} className="absolute w-24 h-24 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer" style={{ left: `${(n.x/400)*100}%`, top: `${(n.y/400)*100}%` }} onPointerDown={(e) => { e.stopPropagation(); setIsDrawing(true); setCurrentNodeId(n.id); playSound('click'); }} />
-          ))}
+      <div className="flex flex-col items-center w-full px-6">
+        {level && <DifficultyTag difficulty={level.difficulty} />}
+        
+        <div ref={container} className={`relative bg-[#050505] rounded-[5.5rem] border-2 border-zinc-900 transition-all duration-300 ${gameState === 'WIN' ? 'win-anim' : ''}`}
+             style={{ width: 'min(92vw, 400px)', height: 'min(92vw, 400px)', boxShadow: isDrawing ? `0 0 100px ${themeColor}10` : 'none' }}
+             onPointerMove={handleMove} onPointerUp={handleUp}>
+          <svg width="100%" height="100%" viewBox="0 0 400 400" className="overflow-visible relative z-20 pointer-events-none">
+            {level?.edges.map((e, i) => {
+              const n1 = level.nodes.find(n => n.id === e.from)!; const n2 = level.nodes.find(n => n.id === e.to)!;
+              return <line key={`bg-${i}`} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke="#18181b" strokeWidth="24" strokeLinecap="round" />;
+            })}
+            {level?.edges.map((e, i) => {
+              const n1 = level.nodes.find(n => n.id === e.from)!; const n2 = level.nodes.find(n => n.id === e.to)!;
+              const isUsed = usedEdges.has([e.from, e.to].sort().join('-'));
+              return isUsed && (
+                <React.Fragment key={i}>
+                  <line x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke={themeColor} strokeWidth="32" strokeLinecap="round" opacity="0.15" />
+                  <line x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke={themeColor} strokeWidth="22" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 12px ${themeColor})` }} />
+                </React.Fragment>
+              );
+            })}
+            {isDrawing && currentNodeId !== null && (
+              <line x1={level?.nodes.find(n => n.id === currentNodeId)?.x} y1={level?.nodes.find(n => n.id === currentNodeId)?.y} x2={touchPos.x} y2={touchPos.y} stroke={`${themeColor}88`} strokeWidth="10" strokeDasharray="12,10" strokeLinecap="round" />
+            )}
+            {level?.nodes.map(n => {
+              const isActive = currentNodeId === n.id;
+              return (
+                <g key={n.id}>
+                  <circle cx={n.x} cy={n.y} r="20" fill={isActive ? "white" : "#0c0c0c"} stroke={isActive ? themeColor : "#2a2a2e"} strokeWidth="6" className="transition-all duration-200" />
+                  {isActive && <circle cx={n.x} cy={n.y} r="50" fill={`${themeColor}10`} className="animate-ping" />}
+                </g>
+              );
+            })}
+          </svg>
+          <div className="absolute inset-0 z-30 pointer-events-none">
+            {level?.nodes.map(n => (
+              <div key={n.id} className="absolute w-44 h-44 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer" 
+                   style={{ left: `${(n.x/400)*100}%`, top: `${(n.y/400)*100}%` }} 
+                   onPointerDown={(e) => { e.stopPropagation(); setIsDrawing(true); setCurrentNodeId(n.id); playSfx('click'); }} />
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="w-full px-8 pb-8 flex flex-col gap-6">
-        <div className="flex gap-5">
-          <button onClick={() => watchAd(() => {})} className="flex-1 bg-zinc-900/60 py-7 rounded-[2.5rem] flex items-center justify-center gap-3 text-[11px] font-black tracking-[0.2em] text-white active:scale-95 border border-zinc-800 backdrop-blur-md transition-all shadow-xl group">
-            <Lightbulb size={22} className="text-yellow-400 group-hover:scale-110 transition-transform" /> HINT
+      <div className="w-full px-8 flex flex-col gap-4 max-w-[440px] z-50">
+        <div className="flex gap-4">
+          <button onClick={() => showAd(() => {})} className="flex-1 bg-zinc-900 py-6 rounded-[2rem] flex items-center justify-center gap-3 text-white font-black text-[12px] tracking-widest border border-zinc-800 active:scale-95 shadow-lg">
+            <Lightbulb size={24} className="text-yellow-400" /> HINT
           </button>
-          <button onClick={() => watchAd(() => { setGameState('WIN'); playSound('win'); })} className="flex-1 bg-zinc-900/60 py-7 rounded-[2.5rem] flex items-center justify-center gap-3 text-[11px] font-black tracking-[0.2em] text-white active:scale-95 border border-zinc-800 backdrop-blur-md transition-all shadow-xl group">
-            <FastForward size={22} className="text-rose-500 group-hover:scale-110 transition-transform" /> SKIP
+          <button onClick={() => showAd(() => setGameState('WIN'))} className="flex-1 bg-zinc-900 py-6 rounded-[2rem] flex items-center justify-center gap-3 text-white font-black text-[12px] tracking-widest border border-zinc-800 active:scale-95 shadow-lg">
+            <FastForward size={24} className="text-rose-500" /> SKIP
           </button>
         </div>
-        <AdBanner />
+        <AdMobBanner />
       </div>
 
       {gameState === 'WIN' && (
-        <div className="fixed inset-0 z-[150] bg-black/95 flex items-center justify-center p-10 backdrop-blur-[50px] animate-in zoom-in duration-500">
+        <div className="fixed inset-0 z-[2000] bg-black/98 flex items-center justify-center p-10 animate-in zoom-in duration-200 backdrop-blur-3xl">
           <div className="text-center w-full max-w-sm">
-            <Trophy size={160} className="mx-auto text-yellow-400 mb-10 animate-bounce" />
-            <h2 className="text-7xl font-black italic text-white tracking-tighter mb-4 uppercase leading-none">CLEARED</h2>
-            <p className="text-zinc-600 font-bold tracking-[0.4em] text-[12px] uppercase mb-16">IQ Increasing...</p>
+            <Trophy size={140} className="mx-auto text-yellow-400 animate-bounce mb-8 drop-shadow-[0_0_50px_rgba(250,204,21,0.2)]" />
+            <h2 className="text-[100px] font-black italic text-white tracking-tighter mb-4 uppercase leading-[0.6]">IQ<br/><span className="text-yellow-400">BOSS</span></h2>
+            <p className="text-zinc-600 font-bold tracking-[0.4em] text-[11px] mb-12 uppercase">LEVEL {levelNumber} DONE</p>
             <div className="flex flex-col gap-5">
-              <button onClick={() => { setLevelNumber(n => n + 1); startLevel(levelNumber + 1); playSound('click'); }} 
-                      className="w-full bg-white text-black py-8 rounded-[3.5rem] text-4xl font-black flex items-center justify-center gap-4 shadow-[0_30px_90px_rgba(255,255,255,0.2)] active:scale-95 transition-all">
-                NEXT <ArrowRight size={44} strokeWidth={4} />
+              <button onClick={() => { setLevelNumber(n => n + 1); startLevel(levelNumber + 1); playSfx('click'); }} 
+                      className="w-full bg-white text-black py-9 rounded-[4.5rem] text-4xl font-black flex items-center justify-center gap-6 active:scale-90 shadow-2xl">
+                NEXT <ArrowRight size={44} strokeWidth={5} />
               </button>
-              <button onClick={handleShare} className="w-full bg-zinc-900 text-zinc-500 py-7 rounded-[3rem] font-bold flex items-center justify-center gap-3 border border-zinc-800 active:bg-zinc-800 active:scale-95 transition-all">
-                <Share2 size={24} /> BRAG TO FRIENDS
+              <button onClick={() => { if(navigator.share) navigator.share({ title: 'Neon One', text: `Cleared level ${levelNumber}!`, url: window.location.href }); }} 
+                      className="w-full bg-zinc-900/50 text-white py-6 rounded-3xl font-black uppercase text-[10px] tracking-widest border border-zinc-800 active:scale-95 flex items-center justify-center gap-3">
+                <Share2 size={20} /> SHARE PERFORMANCE
               </button>
             </div>
           </div>

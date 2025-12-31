@@ -11,11 +11,14 @@ export interface Edge {
   used: boolean;
 }
 
+export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD' | 'ULTRA HARD' | 'ULTRA PRO HARD';
+
 export interface DrawingLevel {
   id: number;
   title: string;
+  difficulty: Difficulty;
   nodes: Node[];
   edges: Edge[];
 }
 
-export type GameState = 'MENU' | 'PLAYING' | 'WIN' | 'LOADING' | 'AD_PAUSE';
+export type GameState = 'MENU' | 'PLAYING' | 'WIN' | 'LOADING';
