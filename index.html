@@ -5,12 +5,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#000000">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Neon One: IQ Brain Puzzle 2025</title>
   
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- UMD Libraries - These are the most stable for all environments -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
   
   <style>
@@ -40,7 +43,6 @@
       justify-content: center;
       background: #000;
       z-index: 9999;
-      transition: opacity 0.5s ease;
     }
     .loader-circle {
       width: 40px;
@@ -51,16 +53,25 @@
       animation: spin 1s linear infinite;
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    .neon-glow-cyan { filter: drop-shadow(0 0 10px #00f2ff); }
+    .neon-glow-hint { animation: hint-pulse 0.8s infinite alternate; }
+    @keyframes hint-pulse {
+      from { filter: drop-shadow(0 0 3px #facc15); stroke: #facc15; }
+      to { filter: drop-shadow(0 0 18px #facc15); stroke: #ffffff; }
+    }
+    .pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    @keyframes pop-in { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    
+    .btn-active:active { transform: scale(0.92); }
+    .game-canvas-container {
+      box-shadow: 0 0 50px rgba(0, 242, 255, 0.05);
+    }
   </style>
-
 <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "lucide-react": "https://esm.sh/lucide-react@0.460.0",
-    "@google/genai": "https://esm.sh/@google/genai@1.3.0"
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
   }
 }
 </script>
@@ -68,74 +79,91 @@
 <body class="bg-grid">
   <div id="initial-loader">
     <div class="loader-circle"></div>
-    <p style="margin-top: 20px; font-size: 10px; color: #444; letter-spacing: 0.5em; font-weight: 900; text-transform: uppercase;">Neon One Initializing</p>
+    <p style="margin-top: 20px; font-size: 10px; color: #444; letter-spacing: 0.5em; font-weight: 900; text-transform: uppercase;">Neon One Loading...</p>
   </div>
   <div id="root"></div>
   
-  <script type="text/babel" data-presets="react,typescript">
-    import React, { useState, useEffect, useRef } from 'react';
-    import ReactDOM from 'react-dom/client';
-    import { 
-      RotateCcw, Trophy, ArrowRight, Lightbulb, 
-      Star, Home, Volume2, VolumeX, Play, 
-      FastForward, Smartphone, ShieldCheck, Share2
-    } from 'lucide-react';
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
 
-    // --- CONFIG & CONSTANTS ---
-    const COLORS = ['#00F2FF', '#FF00FF', '#39FF14', '#FFD700', '#FF3131'];
-    
-    // --- LEVEL ENGINE ---
-    const getLevelData = (n) => {
-      const nodeCount = n <= 5 ? 5 : n <= 15 ? 7 : n <= 30 ? 9 : 12;
-      const nodes = [];
-      const center = 200;
-      const spread = 120 + (Math.sin(n) * 20);
-      
-      for(let i = 0; i < nodeCount - 1; i++) {
-        const angle = (i * 2 * Math.PI) / (nodeCount - 1) + (n * 0.2);
-        nodes.push({ id: i, x: center + Math.cos(angle) * spread, y: center + Math.sin(angle) * spread });
-      }
-      nodes.push({ id: nodeCount - 1, x: center, y: center });
-      
-      const edges = [];
-      for(let i = 0; i < nodeCount - 1; i++) {
-        edges.push({ from: i, to: (i + 1) % (nodeCount - 1) });
-        edges.push({ from: i, to: nodeCount - 1 });
-      }
-      return { nodes, edges };
-    };
-
-    // --- AUDIO SYSTEM ---
-    const audio = {
-      ctx: null,
-      init() { if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
-      play(f, t, d, v) {
-        try {
-          this.init();
-          const o = this.ctx.createOscillator();
-          const g = this.ctx.createGain();
-          o.type = t; o.frequency.setValueAtTime(f, this.ctx.currentTime);
-          g.gain.setValueAtTime(v, this.ctx.currentTime);
-          g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + d);
-          o.connect(g); g.connect(this.ctx.destination);
-          o.start(); o.stop(this.ctx.currentTime + d);
-        } catch(e) {}
-      }
-    };
-
-    // --- COMPONENTS ---
-    const BannerAd = () => (
-      <div className="w-full h-[60px] bg-zinc-950/80 border border-white/5 flex items-center justify-between px-6 rounded-2xl overflow-hidden backdrop-blur-2xl mb-2">
+    // Ad Unit Placeholder
+    const AdUnit = ({ type = 'BANNER' }) => (
+      <div className={`w-full ${type === 'BANNER' ? 'h-[60px]' : 'h-[100px]'} bg-zinc-900/40 border border-white/5 flex items-center justify-between px-6 rounded-2xl mb-2 backdrop-blur-sm overflow-hidden`}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white"><Smartphone size={16}/></div>
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white"><i data-lucide="layout-grid" style={{width: 14}}></i></div>
           <div className="flex flex-col">
-            <span className="text-[10px] font-black uppercase text-white tracking-widest leading-none">AdMob Live</span>
+            <span className="text-[9px] font-black uppercase text-zinc-400 tracking-widest leading-none">Sponsored</span>
             <span className="text-[7px] text-zinc-600 font-bold uppercase">UNIT_8223244910</span>
           </div>
         </div>
-        <div className="text-[7px] bg-white text-black px-1.5 py-0.5 rounded-sm font-black uppercase">AD</div>
+        <div className="px-2 py-1 bg-white/5 rounded text-[8px] text-zinc-500 font-bold tracking-widest uppercase">AdMob</div>
       </div>
     );
+
+    // Truly Progressive Level Generation Engine
+    const generateLevel = (lvl) => {
+      const nodes = [];
+      const edges = [];
+      const center = 200;
+      
+      // Complexity increases with level
+      let nodeCount = 3 + Math.floor(lvl / 4);
+      if (nodeCount > 15) nodeCount = 15; // Max nodes for display
+
+      const radius = 110 + Math.min(lvl, 45);
+      const complexity = lvl % 5; // Variation style
+
+      // 1. Generate Nodes based on Archetypes
+      if (lvl < 5) {
+        // Simple Polygon
+        for (let i = 0; i < nodeCount; i++) {
+          const angle = (i * 2 * Math.PI) / nodeCount - Math.PI / 2;
+          nodes.push({ id: i, x: center + Math.cos(angle) * radius, y: center + Math.sin(angle) * radius });
+        }
+        for (let i = 0; i < nodeCount; i++) edges.push({ from: i, to: (i + 1) % nodeCount });
+      } else if (lvl < 15) {
+        // Polygon with Internal Diagonals
+        for (let i = 0; i < nodeCount; i++) {
+          const angle = (i * 2 * Math.PI) / nodeCount - Math.PI / 2;
+          nodes.push({ id: i, x: center + Math.cos(angle) * radius, y: center + Math.sin(angle) * radius });
+        }
+        for (let i = 0; i < nodeCount; i++) {
+          edges.push({ from: i, to: (i + 1) % nodeCount });
+          if (i % 2 === 0) edges.push({ from: i, to: (i + 2) % nodeCount });
+        }
+      } else if (lvl < 30) {
+        // Star Pattern
+        const outer = Math.ceil(nodeCount / 2);
+        const inner = nodeCount - outer;
+        for (let i = 0; i < outer; i++) {
+          const angle = (i * 2 * Math.PI) / outer - Math.PI / 2;
+          nodes.push({ id: i, x: center + Math.cos(angle) * radius, y: center + Math.sin(angle) * radius });
+        }
+        for (let i = 0; i < inner; i++) {
+          const angle = (i * 2 * Math.PI) / inner - Math.PI / 2 + (Math.PI/outer);
+          nodes.push({ id: i + outer, x: center + Math.cos(angle) * (radius * 0.4), y: center + Math.sin(angle) * (radius * 0.4) });
+        }
+        for (let i = 0; i < outer; i++) {
+          edges.push({ from: i, to: (i + 1) % outer });
+          if (i + outer < nodeCount) edges.push({ from: i, to: i + outer });
+        }
+      } else {
+        // Advanced Grid / Hub Spoke
+        nodes.push({ id: 0, x: center, y: center });
+        for (let i = 1; i < nodeCount; i++) {
+          const angle = ((i-1) * 2 * Math.PI) / (nodeCount - 1);
+          nodes.push({ id: i, x: center + Math.cos(angle) * radius, y: center + Math.sin(angle) * radius });
+        }
+        for (let i = 1; i < nodeCount; i++) {
+          edges.push({ from: 0, to: i });
+          edges.push({ from: i, to: (i % (nodeCount - 1)) + 1 });
+          if (lvl > 40 && i % 3 === 0) edges.push({ from: i, to: ((i+2) % (nodeCount - 1)) + 1 });
+        }
+      }
+
+      const diffLabel = lvl < 5 ? "EASY" : lvl < 15 ? "MEDIUM" : lvl < 30 ? "HARD" : "INSANE";
+      return { nodes, edges, difficulty: diffLabel };
+    };
 
     const App = () => {
       const [view, setView] = useState('MENU');
@@ -145,41 +173,59 @@
       const [used, setUsed] = useState(new Set());
       const [drawing, setDrawing] = useState(false);
       const [pos, setPos] = useState({ x: 0, y: 0 });
-      const [muted, setMuted] = useState(false);
-      const container = useRef(null);
-      const color = COLORS[(levelNum - 1) % COLORS.length];
+      const [hint, setHint] = useState(null);
+      const [showAdPopup, setShowAdPopup] = useState(null);
+      const containerRef = useRef(null);
+
+      const startLevel = useCallback((n) => {
+        const data = generateLevel(n);
+        setLevel(data);
+        setUsed(new Set());
+        setCurrent(null);
+        setHint(null);
+        setView('GAME');
+      }, []);
 
       useEffect(() => {
         const loader = document.getElementById('initial-loader');
-        if (loader) { loader.style.opacity = '0'; setTimeout(() => loader.style.display = 'none', 500); }
-      }, []);
+        if (loader) loader.style.display = 'none';
+        if (window.lucide) window.lucide.createIcons();
+      }, [view, showAdPopup, levelNum]);
 
-      const start = (n) => {
-        setLevel(getLevelData(n));
-        setUsed(new Set());
-        setCurrent(null);
-        setView('GAME');
-      };
-
-      const onMove = (e) => {
-        if (!drawing || !level || current === null) return;
-        const r = container.current.getBoundingClientRect();
-        const x = ((e.clientX - r.left) / r.width) * 400;
-        const y = ((e.clientY - r.top) / r.height) * 400;
+      const handlePointer = (e) => {
+        if (!level || (view !== 'GAME')) return;
+        
+        const r = containerRef.current.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const x = ((clientX - r.left) / r.width) * 400;
+        const y = ((clientY - r.top) / r.height) * 400;
         setPos({ x, y });
 
-        for (const n of level.nodes) {
-          const d = Math.sqrt((n.x - x)**2 + (n.y - y)**2);
-          if (d < 35 && n.id !== current) {
-            const key = [current, n.id].sort().join('-');
-            const edge = level.edges.find(ed => (ed.from === current && ed.to === n.id) || (ed.from === n.id && ed.to === current));
-            if (edge && !used.has(key)) {
-              const newUsed = new Set(used).add(key);
-              setUsed(newUsed);
-              setCurrent(n.id);
-              if(!muted) audio.play(1000, 'sine', 0.05, 0.05);
-              if (newUsed.size === level.edges.length) {
-                setTimeout(() => { setView('WIN'); if(!muted) audio.play(800, 'sine', 0.5, 0.1); }, 100);
+        if (e.type === 'mousedown' || e.type === 'touchstart') {
+          setDrawing(true);
+        }
+
+        if (drawing || e.type === 'mousedown' || e.type === 'touchstart') {
+          for (const n of level.nodes) {
+            const d = Math.sqrt((n.x - x)**2 + (n.y - y)**2);
+            if (d < 45) { // Very generous hit area for mobile finger
+              if (current === null) {
+                setCurrent(n.id);
+                setHint(null);
+              } else if (n.id !== current) {
+                const key = [current, n.id].sort().join('-');
+                const edge = level.edges.find(ed => (ed.from === current && ed.to === n.id) || (ed.from === n.id && ed.to === current));
+                
+                if (edge && !used.has(key)) {
+                  const nextUsed = new Set(used).add(key);
+                  setUsed(nextUsed);
+                  setCurrent(n.id);
+                  setHint(null);
+                  if (nextUsed.size === level.edges.length) {
+                    setTimeout(() => setView('WIN'), 300);
+                  }
+                }
               }
               break;
             }
@@ -187,55 +233,116 @@
         }
       };
 
+      const handleReward = () => {
+        const type = showAdPopup;
+        setShowAdPopup(null);
+        if (type === 'SKIP') {
+          const next = levelNum + 1;
+          setLevelNum(next);
+          startLevel(next);
+        } else if (type === 'HINT') {
+          // Find first available edge from current node
+          const nextEdge = level.edges.find(e => {
+            const key = [e.from, e.to].sort().join('-');
+            if (used.has(key)) return false;
+            if (current === null) return true;
+            return e.from === current || e.to === current;
+          });
+          if (nextEdge) setHint(nextEdge);
+        }
+      };
+
       if (view === 'MENU') return (
-        <div className="flex-1 bg-black flex flex-col items-center justify-between p-10">
-          <div className="pt-20 text-center">
-            <h1 className="text-[100px] font-black italic tracking-tighter leading-[0.6] text-white">NEON<br/><span className="text-zinc-800">ONE</span></h1>
-            <p className="mt-8 text-zinc-800 font-black uppercase tracking-[0.4em] text-[8px]">IQ ENGINE v2025.1</p>
+        <div className="flex-1 bg-black flex flex-col items-center justify-between p-10 pb-6">
+          <div className="pt-24 text-center">
+            <h1 className="text-[100px] font-black italic tracking-tighter leading-[0.6] text-white">NEON<br/><span className="text-zinc-800 text-[80px]">ONE</span></h1>
+            <p className="mt-10 text-zinc-700 font-black uppercase tracking-[0.4em] text-[10px]">ULTIMATE LOGIC CHALLENGE 2025</p>
           </div>
-          <button onClick={() => start(levelNum)} className="w-full max-w-[320px] bg-white text-black py-8 rounded-[3rem] font-black text-5xl active:scale-95 transition-all">PLAY</button>
-          <BannerAd />
+          <div className="w-full flex flex-col items-center gap-6">
+            <button onClick={() => startLevel(levelNum)} className="w-full max-w-[320px] bg-white text-black py-8 rounded-[3rem] font-black text-5xl btn-active transition-all shadow-[0_0_40px_rgba(255,255,255,0.2)]">PLAY</button>
+            <p className="text-zinc-500 font-bold uppercase text-[9px] tracking-widest text-center">CURRENT STAGE: {levelNum}</p>
+          </div>
+          <AdUnit />
         </div>
       );
 
       return (
-        <div className="flex-1 bg-black flex flex-col items-center justify-between pb-6">
-          <div className="w-full px-8 pt-8 flex justify-between items-center">
-            <button onClick={() => setView('MENU')} className="p-3 bg-zinc-900 rounded-xl text-white"><Home size={22}/></button>
-            <div className="bg-zinc-900 px-6 py-2 rounded-full text-white font-black italic tracking-widest">LVL {levelNum}</div>
-            <button onClick={() => { setUsed(new Set()); setCurrent(null); }} className="p-3 bg-zinc-900 rounded-xl text-white"><RotateCcw size={22}/></button>
+        <div className="flex-1 bg-black flex flex-col items-center justify-between pb-8">
+          <div className="w-full px-8 pt-10 flex justify-between items-center">
+            <button onClick={() => setView('MENU')} className="p-4 bg-zinc-900 rounded-2xl text-white btn-active"><i data-lucide="home"></i></button>
+            <div className="flex flex-col items-center">
+              <div className="bg-zinc-900 px-8 py-2 rounded-full text-white font-black italic tracking-widest text-lg border border-white/10 shadow-lg">LVL {levelNum}</div>
+              <span className="text-[8px] font-black text-indigo-500 mt-1 tracking-[0.3em] uppercase">{level?.difficulty}</span>
+            </div>
+            <button onClick={() => { setUsed(new Set()); setCurrent(null); setHint(null); }} className="p-4 bg-zinc-900 rounded-2xl text-white btn-active"><i data-lucide="rotate-ccw"></i></button>
           </div>
 
-          <div ref={container} className="relative bg-[#040404] rounded-[3rem] border border-white/5" 
-               style={{ width: 'min(90vw, 360px)', height: 'min(90vw, 360px)' }}
-               onPointerMove={onMove} onPointerUp={() => setDrawing(false)}>
+          <div ref={containerRef} className="relative bg-[#040404] rounded-[4rem] border border-white/5 overflow-hidden game-canvas-container" 
+               style={{ width: 'min(92vw, 380px)', height: 'min(92vw, 380px)' }}
+               onMouseDown={handlePointer} onMouseMove={handlePointer} onMouseUp={() => setDrawing(false)}
+               onTouchStart={handlePointer} onTouchMove={handlePointer} onTouchEnd={() => setDrawing(false)}>
             <svg width="100%" height="100%" viewBox="0 0 400 400" className="pointer-events-none">
               {level?.edges.map((e, i) => {
                 const n1 = level.nodes.find(n => n.id === e.from);
                 const n2 = level.nodes.find(n => n.id === e.to);
                 const isUsed = used.has([e.from, e.to].sort().join('-'));
-                return <line key={i} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke={isUsed ? color : "#111"} strokeWidth="20" strokeLinecap="round" style={{ filter: isUsed ? `drop-shadow(0 0 8px ${color})` : 'none' }} />;
+                const isHint = hint && ((hint.from === e.from && hint.to === e.to) || (hint.from === e.to && hint.to === e.from));
+                return <line key={i} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} 
+                             stroke={isUsed ? "#00F2FF" : (isHint ? "#facc15" : "#141414")} 
+                             strokeWidth={isUsed ? "22" : "18"} strokeLinecap="round" 
+                             className={isUsed ? "neon-glow-cyan" : (isHint ? "neon-glow-hint" : "")} />;
               })}
-              {drawing && current !== null && <line x1={level.nodes.find(n => n.id === current).x} y1={level.nodes.find(n => n.id === current).y} x2={pos.x} y2={pos.y} stroke={`${color}44`} strokeWidth="10" strokeDasharray="10,10" />}
-              {level?.nodes.map(n => <circle key={n.id} cx={n.x} cy={n.y} r="16" fill={current === n.id ? "white" : "#050505"} stroke={current === n.id ? color : "#222"} strokeWidth="4" />)}
+              {drawing && current !== null && (
+                <line x1={level.nodes.find(n => n.id === current).x} y1={level.nodes.find(n => n.id === current).y} x2={pos.x} y2={pos.y} stroke="#00F2FF33" strokeWidth="12" strokeDasharray="12,12" />
+              )}
+              {level?.nodes.map(n => (
+                <circle key={n.id} cx={n.x} cy={n.y} r="20" 
+                        fill={current === n.id ? "white" : "#080808"} 
+                        stroke={current === n.id ? "#00F2FF" : "#222"} 
+                        strokeWidth="5" className={current === n.id ? "neon-glow-cyan" : ""} />
+              ))}
             </svg>
-            <div className="absolute inset-0">
-              {level?.nodes.map(n => <div key={n.id} className="absolute w-20 h-20 -translate-x-1/2 -translate-y-1/2" style={{ left: `${(n.x/400)*100}%`, top: `${(n.y/400)*100}%` }} onPointerDown={() => { setDrawing(true); setCurrent(n.id); if(!muted) audio.play(800, 'sine', 0.03, 0.05); }} />)}
-            </div>
           </div>
 
-          <div className="w-full px-8 max-w-[400px] flex flex-col gap-2">
-            <button onClick={() => setMuted(!muted)} className="bg-zinc-900 py-3 rounded-xl text-zinc-500 font-bold uppercase text-[9px] tracking-widest flex items-center justify-center gap-2">
-              {muted ? <VolumeX size={14}/> : <Volume2 size={14}/>} SOUND {muted ? 'OFF' : 'ON'}
-            </button>
-            <BannerAd />
+          <div className="w-full flex flex-col gap-4 px-8 max-w-[420px]">
+            <div className="flex gap-4">
+              <button onClick={() => setShowAdPopup('HINT')} className="flex-1 bg-zinc-900 py-6 rounded-3xl flex items-center justify-center gap-3 text-white font-black uppercase text-xs tracking-widest btn-active shadow-xl border border-white/5">
+                <i data-lucide="sparkles" style={{width: 16}}></i> HINT
+              </button>
+              <button onClick={() => setShowAdPopup('SKIP')} className="flex-1 bg-zinc-900 py-6 rounded-3xl flex items-center justify-center gap-3 text-white font-black uppercase text-xs tracking-widest btn-active shadow-xl border border-white/5">
+                <i data-lucide="skip-forward" style={{width: 16}}></i> SKIP
+              </button>
+            </div>
+            <AdUnit />
           </div>
+
+          {showAdPopup && (
+            <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center p-10 z-[2000] backdrop-blur-3xl animate-in fade-in zoom-in duration-200">
+              <div className="bg-zinc-900 border border-white/10 p-12 rounded-[3.5rem] w-full max-w-[360px] text-center shadow-2xl pop-in">
+                <div className="w-24 h-24 bg-indigo-600 rounded-[2.2rem] mx-auto mb-10 flex items-center justify-center text-white shadow-[0_0_40px_rgba(79,70,229,0.4)]">
+                   <i data-lucide="play-circle" size={48}></i>
+                </div>
+                <h3 className="text-4xl font-black italic text-white mb-2 uppercase tracking-tighter">REWARD</h3>
+                <p className="text-zinc-500 text-[10px] font-black mb-12 uppercase tracking-widest leading-relaxed">Watch a video to unlock {showAdPopup}</p>
+                <div className="flex flex-col gap-4">
+                  <button onClick={handleReward} className="w-full bg-white text-black py-7 rounded-[2.2rem] font-black text-2xl uppercase btn-active">WATCH NOW</button>
+                  <button onClick={() => setShowAdPopup(null)} className="text-zinc-700 font-black uppercase text-[10px] tracking-widest mt-2 p-3">NOT NOW</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {view === 'WIN' && (
-            <div className="fixed inset-0 bg-black/98 flex flex-col items-center justify-center p-10 z-[1000] animate-in zoom-in duration-300">
-              <Trophy size={100} className="text-yellow-400 mb-6 animate-bounce" />
-              <h2 className="text-6xl font-black italic text-white mb-10 text-center tracking-tighter uppercase leading-none">IQ<br/>BOOSTED</h2>
-              <button onClick={() => { setLevelNum(n => n + 1); start(levelNum + 1); }} className="w-full max-w-[300px] bg-white text-black py-7 rounded-full text-3xl font-black">NEXT CHALLENGE</button>
+            <div className="fixed inset-0 bg-black/98 flex flex-col items-center justify-center p-10 z-[1000] backdrop-blur-md">
+              <div className="flex flex-col items-center pop-in">
+                <div className="text-yellow-400 mb-10 scale-[3] drop-shadow-[0_0_40px_rgba(250,204,21,0.5)]"><i data-lucide="crown"></i></div>
+                <h2 className="text-8xl font-black italic text-white mb-4 text-center uppercase tracking-tighter leading-none">STAGE<br/>CLEAR</h2>
+                <p className="text-zinc-600 font-black mb-16 tracking-[0.8em] uppercase text-[11px]">Logic Level {levelNum} Solved</p>
+                <button onClick={() => { const next = levelNum + 1; setLevelNum(next); startLevel(next); }} 
+                  className="w-full min-w-[300px] bg-white text-black py-8 rounded-full text-4xl font-black btn-active shadow-[0_0_60px_rgba(255,255,255,0.3)]">
+                  NEXT LEVEL
+                </button>
+              </div>
             </div>
           )}
         </div>
