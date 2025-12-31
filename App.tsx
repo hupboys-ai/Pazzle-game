@@ -6,8 +6,8 @@ import {
   Play, FastForward, Settings, Share2, Award,
   ShieldCheck, Smartphone
 } from 'lucide-react';
-import { generateDrawingLevel, generateProceduralFallback } from './services/geminiService.ts';
-import { DrawingLevel, GameState } from './types.ts';
+import { generateDrawingLevel, generateProceduralFallback } from './services/geminiService';
+import { DrawingLevel, GameState } from './types';
 
 const createAudioSystem = () => {
   let ctx: AudioContext | null = null;
@@ -44,15 +44,15 @@ const createAudioSystem = () => {
 const BannerAd: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoaded(true), 1200);
+    const timer = setTimeout(() => setIsLoaded(true), 800);
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <div className="w-full h-[60px] bg-zinc-950/80 border border-white/5 flex items-center justify-between px-6 rounded-2xl overflow-hidden backdrop-blur-2xl mb-2 relative">
+    <div className="w-full h-[60px] bg-zinc-950/80 border border-white/5 flex items-center justify-between px-6 rounded-2xl overflow-hidden backdrop-blur-2xl mb-2">
       {!isLoaded ? (
-        <div className="absolute inset-0 ad-shimmer flex items-center justify-center">
-          <span className="text-[8px] font-black text-white/5 uppercase tracking-[0.4em]">Requesting Ad...</span>
+        <div className="w-full h-full flex items-center justify-center opacity-10">
+          <span className="text-[8px] font-black uppercase tracking-[0.4em]">Ad Slot</span>
         </div>
       ) : (
         <>
@@ -62,13 +62,13 @@ const BannerAd: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <span className="text-[10px] font-black uppercase text-white tracking-widest leading-none flex items-center gap-1">
-                AdMob Live <ShieldCheck size={8} className="text-indigo-400" />
+                AdMob <ShieldCheck size={8} className="text-indigo-400" />
               </span>
-              <span className="text-[7px] text-zinc-600 font-bold uppercase">ca-app-pub-8223244910</span>
+              <span className="text-[7px] text-zinc-600 font-bold uppercase">LIVE_UNIT_ID_8223244910</span>
             </div>
           </div>
           <div className="flex flex-col items-end">
-            <div className="text-[7px] bg-white text-black px-1.5 py-0.5 rounded-sm font-black uppercase">AD</div>
+            <div className="text-[7px] bg-white text-black px-1.5 py-0.5 rounded-sm font-black uppercase">PROMOTED</div>
           </div>
         </>
       )}
@@ -101,16 +101,9 @@ const App: React.FC = () => {
     const firstLvl = generateProceduralFallback(1);
     levelQueue.current.set(1, firstLvl);
     setLevel(firstLvl);
-    for(let i = 2; i <= 8; i++) prefetch(i);
-  }, []);
-
-  const prefetch = useCallback(async (n: number) => {
-    if (levelQueue.current.has(n)) return;
-    try {
-      const lvl = await generateDrawingLevel(n);
-      levelQueue.current.set(n, lvl);
-    } catch (e) {
-      levelQueue.current.set(n, generateProceduralFallback(n));
+    // Instant prefetch for the first 10 levels
+    for(let i = 2; i <= 10; i++) {
+       levelQueue.current.set(i, generateProceduralFallback(i));
     }
   }, []);
 
@@ -120,19 +113,19 @@ const App: React.FC = () => {
 
   const startLevel = (n: number) => {
     const data = levelQueue.current.get(n);
+    setUsedEdges(new Set());
+    setCurrentNodeId(null);
     if (data) {
       setLevel(data);
-      setUsedEdges(new Set());
-      setCurrentNodeId(null);
       setGameState('PLAYING');
-      prefetch(n + 1);
     } else {
-      setGameState('LOADING');
-      generateDrawingLevel(n).then(lvl => {
-        setLevel(lvl);
-        setGameState('PLAYING');
-      });
+      const fallback = generateProceduralFallback(n);
+      levelQueue.current.set(n, fallback);
+      setLevel(fallback);
+      setGameState('PLAYING');
     }
+    // Background async prefetch for next level using AI
+    generateDrawingLevel(n + 1).then(lvl => levelQueue.current.set(n+1, lvl));
   };
 
   const triggerRewardedAd = (callback: () => void) => {
@@ -152,7 +145,7 @@ const App: React.FC = () => {
         callback();
         playSfx('reward');
       }, 2100);
-    }, 500);
+    }, 400);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -221,7 +214,7 @@ const App: React.FC = () => {
     return (
       <div className="flex-1 bg-black flex flex-col items-center justify-center">
         <Loader2 className="w-10 h-10 text-white animate-spin opacity-10 mb-4" />
-        <p className="text-zinc-800 font-black tracking-[0.4em] text-[9px] uppercase">Generating Intelligence...</p>
+        <p className="text-zinc-800 font-black tracking-[0.4em] text-[9px] uppercase">Synching Logic...</p>
       </div>
     );
   }
@@ -243,22 +236,22 @@ const App: React.FC = () => {
       )}
 
       <div className="w-full px-8 pt-8 flex justify-between items-center">
-        <button onClick={() => { playSfx('click'); setGameState('MENU'); }} className="p-3 bg-zinc-900 rounded-xl border border-white/5 text-white active:scale-90"><Home size={22}/></button>
-        <div className="bg-zinc-900/80 px-6 py-2 rounded-full border border-white/5 flex items-center gap-2">
+        <button onClick={() => { playSfx('click'); setGameState('MENU'); }} className="p-3 bg-zinc-900 rounded-xl border border-white/5 text-white active:scale-90 shadow-2xl"><Home size={22}/></button>
+        <div className="bg-zinc-900/80 px-6 py-2 rounded-full border border-white/5 flex items-center gap-2 backdrop-blur-md">
           <Star className="text-yellow-400 fill-yellow-400" size={14}/>
-          <span className="text-white font-black text-xl italic tracking-tighter">LVL {levelNumber}</span>
+          <span className="text-white font-black text-xl italic tracking-tighter uppercase">LVL {levelNumber}</span>
         </div>
         <button onClick={() => { setUsedEdges(new Set()); setCurrentNodeId(null); playSfx('click'); }} className="p-3 bg-zinc-900 rounded-xl border border-white/5 text-white active:rotate-180 transition-transform duration-300">
           <RotateCcw size={22}/></button>
       </div>
 
-      <div ref={container} className="relative bg-[#040404] rounded-[4rem] border border-white/5"
-           style={{ width: 'min(90vw, 360px)', height: 'min(90vw, 360px)' }}
+      <div ref={container} className="relative bg-[#040404] rounded-[4rem] border border-white/5 transition-all duration-300"
+           style={{ width: 'min(90vw, 360px)', height: 'min(90vw, 360px)', boxShadow: isDrawing ? `0 0 80px ${themeColor}15` : 'none' }}
            onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
         <svg width="100%" height="100%" viewBox="0 0 400 400" className="overflow-visible z-20 pointer-events-none">
           {level?.edges.map((e, i) => {
             const n1 = level.nodes.find(n => n.id === e.from)!; const n2 = level.nodes.find(n => n.id === e.to)!;
-            return <line key={`bg-${i}`} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke="#0f0f11" strokeWidth="24" strokeLinecap="round" />;
+            return <line key={`bg-${i}`} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke="#0e0e10" strokeWidth="24" strokeLinecap="round" />;
           })}
           {level?.edges.map((e, i) => {
             const n1 = level.nodes.find(n => n.id === e.from)!; const n2 = level.nodes.find(n => n.id === e.to)!;
@@ -272,7 +265,7 @@ const App: React.FC = () => {
           )}
           {level?.nodes.map(n => {
             const isActive = currentNodeId === n.id;
-            return <circle key={n.id} cx={n.x} cy={n.y} r="18" fill={isActive ? "white" : "#050505"} stroke={isActive ? themeColor : "#151518"} strokeWidth="5" className="transition-all duration-200" />;
+            return <circle key={n.id} cx={n.x} cy={n.y} r="18" fill={isActive ? "white" : "#050505"} stroke={isActive ? themeColor : "#18181b"} strokeWidth="5" className="transition-all duration-200" />;
           })}
         </svg>
         <div className="absolute inset-0 z-30 pointer-events-none">
@@ -286,10 +279,10 @@ const App: React.FC = () => {
 
       <div className="w-full px-8 flex flex-col gap-3 max-w-[400px]">
         <div className="flex gap-3">
-          <button onClick={() => triggerRewardedAd(() => {})} className="flex-1 bg-zinc-900/50 py-5 rounded-2xl flex items-center justify-center gap-2 text-white font-black text-[10px] tracking-widest border border-white/5 active:scale-95">
+          <button onClick={() => triggerRewardedAd(() => {})} className="flex-1 bg-zinc-900/50 py-5 rounded-2xl flex items-center justify-center gap-2 text-white font-black text-[10px] tracking-widest border border-white/5 active:scale-95 shadow-xl">
             <Lightbulb size={20} className="text-yellow-400" /> HINT
           </button>
-          <button onClick={() => triggerRewardedAd(() => setGameState('WIN'))} className="flex-1 bg-zinc-900/50 py-5 rounded-2xl flex items-center justify-center gap-2 text-white font-black text-[10px] tracking-widest border border-white/5 active:scale-95">
+          <button onClick={() => triggerRewardedAd(() => setGameState('WIN'))} className="flex-1 bg-zinc-900/50 py-5 rounded-2xl flex items-center justify-center gap-2 text-white font-black text-[10px] tracking-widest border border-white/5 active:scale-95 shadow-xl">
             <FastForward size={20} className="text-rose-500" /> SKIP
           </button>
         </div>
@@ -299,14 +292,14 @@ const App: React.FC = () => {
       {gameState === 'WIN' && (
         <div className="fixed inset-0 z-[11000] bg-black/98 flex items-center justify-center p-10 backdrop-blur-3xl animate-in zoom-in duration-300">
           <div className="text-center w-full max-w-sm">
-            <Trophy size={120} className="mx-auto text-yellow-400 animate-bounce mb-6" />
+            <Trophy size={120} className="mx-auto text-yellow-400 animate-bounce mb-6 drop-shadow-[0_0_40px_rgba(250,204,21,0.2)]" />
             <h2 className="text-[90px] font-black italic text-white tracking-tighter mb-4 leading-[0.6] uppercase">IQ<br/><span className="text-yellow-400">BOOST</span></h2>
             <div className="flex flex-col gap-4 mt-10">
               <button onClick={() => { setLevelNumber(n => n + 1); startLevel(levelNumber + 1); playSfx('click'); }} 
-                      className="w-full bg-white text-black py-7 rounded-[3rem] text-3xl font-black flex items-center justify-center gap-5 active:scale-90 transition-all">
+                      className="w-full bg-white text-black py-7 rounded-[3rem] text-3xl font-black flex items-center justify-center gap-5 active:scale-90 transition-all shadow-2xl">
                 NEXT <ArrowRight size={38} strokeWidth={5} />
               </button>
-              <button onClick={() => { if(navigator.share) navigator.share({ title: 'Neon One', text: `Level ${levelNumber} is easy! Can you win?`, url: window.location.href }); }} 
+              <button onClick={() => { if(navigator.share) navigator.share({ title: 'Neon One', text: `Level ${levelNumber} Complete!`, url: window.location.href }); }} 
                       className="w-full bg-zinc-900/20 text-white py-5 rounded-2xl font-black uppercase text-[9px] tracking-widest border border-white/5 flex items-center justify-center gap-2 active:scale-95">
                 <Share2 size={20} /> SHARE CHALLENGE
               </button>

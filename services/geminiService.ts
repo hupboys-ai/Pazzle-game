@@ -45,11 +45,11 @@ export const generateProceduralFallback = (levelNum: number): DrawingLevel => {
   const { difficulty, nodeCount } = getDifficultyConfig(levelNum);
   const nodes = [];
   const center = 200;
-  const spread = 120;
+  const spread = 120 + (Math.sin(levelNum) * 30); // Dynamic spread
 
-  // Create a symmetrical star/polygon pattern for instant loading
+  // Create varied geometric patterns
   for(let i = 0; i < nodeCount - 1; i++) {
-    const angle = (i * 2 * Math.PI) / (nodeCount - 1);
+    const angle = (i * 2 * Math.PI) / (nodeCount - 1) + (levelNum * 0.1);
     nodes.push({ 
       id: i, 
       x: center + Math.cos(angle) * spread, 
@@ -68,14 +68,16 @@ export const generateProceduralFallback = (levelNum: number): DrawingLevel => {
 };
 
 export const generateDrawingLevel = async (levelNum: number): Promise<DrawingLevel> => {
-  const { difficulty, nodeCount } = getDifficultyConfig(levelNum);
-  const apiKey = process?.env?.API_KEY;
+  // Check process.env safety for various environments
+  const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : "";
   
-  if (!apiKey) return generateProceduralFallback(levelNum);
+  if (!apiKey || apiKey.length < 10) {
+    return generateProceduralFallback(levelNum);
+  }
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    // Streamlined prompt to reduce token usage and speed up response
+    const { difficulty, nodeCount } = getDifficultyConfig(levelNum);
     const prompt = `Eulerian path JSON puzzle. Level: ${levelNum}, Difficulty: ${difficulty}, Nodes: ${nodeCount}. Grid: 400x400. One continuous line possible.`;
 
     const response = await ai.models.generateContent({
@@ -84,7 +86,7 @@ export const generateDrawingLevel = async (levelNum: number): Promise<DrawingLev
       config: {
         responseMimeType: "application/json",
         responseSchema: LEVEL_SCHEMA,
-        thinkingConfig: { thinkingBudget: 0 } // Fast mode
+        thinkingConfig: { thinkingBudget: 0 }
       }
     });
     
@@ -93,10 +95,9 @@ export const generateDrawingLevel = async (levelNum: number): Promise<DrawingLev
       ...parsed, 
       id: levelNum, 
       difficulty,
-      edges: parsed.edges.map((e: any) => ({ ...e, used: false })) 
+      edges: (parsed.edges || []).map((e: any) => ({ ...e, used: false })) 
     } as DrawingLevel;
   } catch (e) {
-    console.warn("AI Generation slow or failed, using procedural logic.");
     return generateProceduralFallback(levelNum);
   }
 };
