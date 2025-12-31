@@ -1,0 +1,18 @@
+
+{
+  "short_name": "NeonOne",
+  "name": "Neon One: IQ Brain Puzzle",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/5732/5732560.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#050505",
+  "background_color": "#050505",
+  "orientation": "portrait"
+}
